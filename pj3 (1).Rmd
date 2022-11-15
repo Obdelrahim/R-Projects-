@@ -1,0 +1,336 @@
+---
+title: | 
+  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0.5cm} \LARGE Project #3 Part 2: Retirement Age Prediction
+author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+
+subtitle: Constructing Logit and Probit models for Retirment Age 
+
+output:
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 3
+  fig_caption: yes
+  highlight: haddock
+  number_sections: yes
+  df_print: paged
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+#Libraries 
+library(tm)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(xts)
+library(tis)
+library(jsonlite)
+library(FNN)
+library(RColorBrewer)
+library(MASS)
+library(tseries)
+library(foreign)
+library(forecast)
+library(readtext) 
+library(tidyr) 
+library(scales)
+library(tinytex)
+library(fitdistrplus)
+library(broom)
+library(car)
+library(lmtest)
+library(PerformanceAnalytics)
+library(leaps)
+library(olsrr)
+library(Boruta)
+library(AER)
+library(plm)
+library(stargazer)
+library(coefplot)
+library(gplots)
+library(lattice)
+```
+
+
+\section{Part 1}
+## What We Want to Answer With This Model
+
+We study the factors influencing American's retirement. This includes things such as age, race and income in order to find the largest and most accurate predictor of retirment in America. 
+
+Of course we can expect age and income to be the foremost predictors, but race and education also should give some invaluable information as to whether an indiviudal will be retired at a certain point in time. 
+
+
+\section{Part 2}
+
+## Descriptive Analysis of the Variables 
+
+Using data set from the Health and Retirement Study (HRS), wave 5 (2002) collected by the National Institute of Aging.
+
+Totally 8 variables in the data:
+
+Dependent variable: whether or not a person has become retired (0 or 1).
+
+Independent variables: 
+ins = whether or not people have insurance,
+age, 
+hstatusg = good health status, 
+hhincome = household income, 
+educyear = education years, 
+married, 
+hisp = Hispanic.
+
+```{r message=FALSE, warning=FALSE}
+
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+hist(retire)
+hist(age)
+hist(ins)
+histogram(hstatusg)
+histogram(hhincome)
+histogram(educyear)
+histogram(married)
+histogram(hisp)
+```
+
+From the histogram graph, we can overall concluded that in our sample individual groups, around 2/3 people are retired and 1/3 people are not retired. The majority of people (around 78%) have relatively low household income that are lower than 100K. Around 38% percent of people have insurance while the rest 62% of people do not have insurance.
+
+The histogram of education year presents a beta distribution with relatively long left tail. The majority of people are married, having good health status. Around 10% of sample individuals are Hispanic.
+
+```{r message=FALSE, warning=FALSE}
+boxplot(retire)
+fivenum(retire)
+```
+
+The majority of those in the dataset are retired.
+
+```{r message=FALSE, warning=FALSE}
+plotdist(age,  histo = TRUE, demp = TRUE)
+boxplot(age)
+fivenum(age)
+
+plotdist(educyear,  histo = TRUE, demp = TRUE)
+boxplot(educyear)
+fivenum(educyear)
+
+plotdist(hhincome, histo = TRUE, demp = TRUE)
+boxplot(hhincome)
+fivenum(hhincome)
+```
+
+This is can also been seen from the individual's age boxplot graph that people approximately normally distributed around age 67.
+
+
+The mean of education year is 12 years, and most of people's education year are around 10 to 14 years. It is also shown from the boxplot that education year has a little longer left tail.
+
+
+\section{Part 3}
+
+## Fitting Models 
+
+```{r message=FALSE, warning=FALSE}
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+
+# Define variables
+Y <- cbind(retire)
+X <- cbind(ins, age, hstatusg, hhincome, educyear, married, hisp)
+
+# Descriptive statistics
+summary(Y)
+summary(X)
+
+table(Y)
+table(Y)/sum(table(Y))
+
+# Linear Probability Model
+olsreg = lm(Y ~ X)
+summary(olsreg)
+
+plot(ins+age+hstatusg+hhincome+educyear+married+hisp, retire,pch=20)
+abline(olsreg,col ="red", lwd=2)
+abline(h=0.5,col="blue")
+confint(olsreg)
+
+polsreg<- predict(olsreg)
+summary(polsreg)
+
+olsreg.predict <- ifelse(fitted(olsreg) > 0.5, 1, 0)
+table(olsreg.predict, Y)
+
+mean(olsreg.predict == Y)
+
+```
+##Logit Model 
+
+```{r message=FALSE, warning=FALSE}
+
+# Logit model coefficients
+logit<- glm(Y ~ X, family=binomial (link = "logit"))
+summary(logit) 
+
+# Logit model odds ratios
+exp(logit$coefficients)
+
+confint(logit)
+
+
+table(true = Y, pred = round(fitted(logit)))
+
+# Logit model average marginal effects
+LogitM <- mean(dlogis(predict(logit, type = "link")))
+LogitM * coef(logit)
+
+plogit<- predict(logit, type="response")
+summary(plogit)
+
+logit.pred <- ifelse(fitted(logit) > 0.5, 1, 0)
+table(logit.pred, Y)
+
+mean(logit.pred == Y)
+```
+
+## Probit Model
+
+```{r message=FALSE, warning=FALSE}
+# Probit model coefficients
+probit<- glm(Y ~ X, family=binomial (link="probit"))
+summary(probit)
+
+confint(probit)
+# Probit model average marginal effects
+ProbitM <- mean(dnorm(predict(probit, type = "link")))
+ProbitM * coef(probit)
+
+# Percent correctly predicted values
+table(true = Y, pred = round(fitted(probit)))
+
+#Predict probit model
+pprobit<- predict(probit, type="response")
+summary(pprobit)
+
+
+probit.pred <- ifelse(fitted(probit) > 0.5, 1, 0)
+table(probit.pred, Y)
+
+mean(probit.pred == Y)
+```
+
+
+(1) Binary outcome model coefficients interpretation: 
+
+insured individuals (in comparison to non-insured individuals), older individuals, individuals with good health status, higher household income, higher education, married are more likely to retired; people with less household income and Hispanic people are less likely being retired.
+
+
+(2) Marginal effects interpretation for both probit and logit: 
+
+insured individuals are 3.8% more likely to become retired (in comparison with those that are not insured). One year older will bring around 4.1% of more possibility of retirement. Married people can have  For each individual one more year in education are 8% more likely to have retirement. Hispanics are 4% to 5% less likely to become retired than non-Hispanics.
+
+
+(3) Unlike the coefficients are different, the marginal effects are almost identical in the three models. Also, the sign of the coefficients and marginal effects are same for both the logit and probit models.
+
+  The average of predicted probabilities for having insurance is about 62.3% which is similar to the actual frequency for becoming retired.
+
+  The logit and probit models correctly predict around 69% of the values and the rest are misclassified.
+
+
+Because the probit model has the highest accuracy around 69.03%, therefore we choose the probit model as the most preferable model.
+
+## Probit Model Confusion Matrix 
+
+```{r message=FALSE, warning=FALSE}
+
+library(caret)
+
+inTraining <- createDataPartition(mydata$retire, p = .75, list = FALSE)
+
+training <- mydata[ inTraining,]
+testing <- mydata[-inTraining,]
+train_control <- trainControl(method = "cv",
+number = 5)
+logit_model <- train(as.factor(retire) ~ .,
+data = training,
+method = "glm",
+family = "binomial",
+trControl = train_control)
+# Predict (probabilities) using the testing data
+pred_ins = predict(logit_model, newdata = testing)
+# Evaluate performance
+confusionMatrix(data=pred_ins, reference=as.factor(testing$retire))
+```
+
+From the confusion metrix we could see that the provit model has a relatively high accuracy, which is around 70% percent. Balanced accuracy is reliable as well.
+
+\section{Part 4}
+
+## Probit Prediction Models 
+```{r message=FALSE, warning=FALSE}
+#initial probit prediction model
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+probit<- glm(retire ~ ins+age+hstatusg+hhincome+educyear+married+hisp, family=binomial (link="probit"))
+
+predict(probit, data.frame(age = 67, ins = 1, hhincome = 31.104, educyear = 12, hstatusg = 1, married = 1, hisp = 0 ), type = "response")
+```
+
+Using all average data from the dataset, we could see that the predicted possibility of retirement is around 71.24%.
+```{r message=FALSE, warning=FALSE}
+# Case 1: Average individual 50 years old
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+probit<- glm(retire ~ ins+age+hstatusg+hhincome+educyear+married+hisp, family=binomial (link="probit"))
+
+predict(probit, data.frame(age = 50, ins = 1, hhincome = 31.104, educyear = 12, hstatusg = 1, married = 1, hisp = 0 ), type = "response")
+```
+
+
+In this case, we could see that an 50 years old, insured, married, non-Hispanic individual with average household income, good health condition, has about 6.8% possibility of getting retired. This possibility is very small, because age 50 is still very far from the legal retirement age (65 to 67) to receive full retirement benefits. Therefore most people will not get retired in their age of 50.
+
+
+```{r message=FALSE, warning=FALSE}
+# Case 2: Average individual 70 years old
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+probit<- glm(retire ~ ins+age+hstatusg+hhincome+educyear+married+hisp, family=binomial (link="probit"))
+
+predict(probit, data.frame(age = 70, ins = 1, hhincome = 31.104, educyear = 12, hstatusg = 1, married = 1, hisp = 0 ), type = "response")
+
+```
+
+In this case, we could see that an 70 years old, insured, married, non-Hispanic individual with average household income, education year, and good health condition, has about 6.8% possibility of getting retired. Compared with case 1, the only changed variable is the age. The possibility of retirement has increased hugely from 6.8% to 82%. This is because this individual has already over 65 years old/legal retured age and has a big possibility of getting retired.
+
+```{r message=FALSE, warning=FALSE}
+#case 3: 5 years' more of education than average 12 years
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+probit<- glm(retire ~ ins+age+hstatusg+hhincome+educyear+married+hisp, family=binomial (link="probit"))
+
+predict(probit, data.frame(age = 67, ins = 1, hhincome = 31.104, educyear = 17, hstatusg = 1, married = 1, hisp = 0 ), type = "response")
+
+```
+
+In this case, we could see that insured, married, non-Hispanic individual with average sample age 67, household income, good health condition, and extra 5 years of education has about 79% possibility of getting retired. Compared with the initial prediction case, The possibility of retirement has increased about 8%. This shows a possible relationship that higher education/more education years leads to bigger possibility of retirement when reaching age 67, compared with others with less education years.
+
+```{r message=FALSE, warning=FALSE}
+#case 4: Unmarried individual
+mydata<- read.csv("/Users/omerabdelrahim/Downloads/probit_insurance.csv")
+
+attach(mydata)
+probit<- glm(retire ~ ins+age+hstatusg+hhincome+educyear+married+hisp, family=binomial (link="probit"))
+
+predict(probit, data.frame(age = 67, ins = 1, hhincome = 31.104, educyear = 17, hstatusg = 1, married = 0, hisp = 0 ), type = "response")
+
+```
+With other conditions stay same, an unmarried individual has a slightly more possibility to get retired than a married one, about 0.37%. This can potentially because that married individual may need more income for household than single individual, so they will delay their retirement.

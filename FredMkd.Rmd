@@ -1,0 +1,620 @@
+---
+title: | 
+  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0.5cm} \LARGE Project #2
+author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+
+subtitle: Time Series of the Unemployment Rate and the Federal Funds Rate
+
+output:
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 3
+  fig_caption: yes
+  highlight: haddock
+  number_sections: yes
+  df_print: paged
+---
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+rm(list=ls(all=TRUE))
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message= FALSE}
+library(knitr)
+library(png)
+opts_chunk$set(tidy.opts=list(width.cutoff=60))
+options(rgl.printRglwidget = TRUE)
+#Libraries 
+library(tm)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(xts)
+library(tis)
+library(jsonlite)
+library(FNN)
+library(RColorBrewer)
+library(MASS)
+library(tseries)
+library(foreign)
+library(forecast)
+library(readtext) 
+library(tidyr) 
+library(scales)
+library(tinytex)
+library(fitdistrplus)
+library(broom)
+library(car)
+library(lmtest)
+library(PerformanceAnalytics)
+library(leaps)
+library(olsrr)
+library(Boruta)
+#New Libraries 
+library(lattice)
+require(stats)
+require(stats4)
+library(KernSmooth)
+library(fastICA)
+library(cluster)
+library(leaps)
+library(mgcv)
+library(rpart)
+library(pan)
+library(mgcv)
+library(DAAG)
+library(TTR)
+library(tis)
+require("datasets")
+require(graphics)
+require(astsa)
+library(xtable)
+# New libraries added:
+library(stats)
+library(TSA)
+library(timeSeries)
+library(fUnitRoots)
+library(fBasics)
+library(timsac)
+library(TTR)
+library(fpp)
+library(strucchange)
+#library(MSBVAR)
+library(vars)
+library(lmtest)
+library(dlnm)
+library(dynlm)
+
+library('KFAS')
+library('FKF')
+
+library(lmvar)
+
+
+```
+
+\section{Step 1}
+
+## Descriptive Analysis of Variables 
+
+Dataset: Fred.csv 
+
+Relevant Information:
+
+Contains information on various macroeconomic variables over a ~52 year period from Q1 1968 to Q1 2022
+
+217 Observations of 5 Variables, tracked quarterly. All within the United States 
+
+
+Attribute Information:
+
+    1.PCE_PCH                     Percent Change in Personal Consumption spending
+    2.GDP_PCH                     Percent Change in GDP
+    3.CORESTICKM159SFRBATL        CPI Less Food and Energy
+    4.FEDFUNDS                    Federal Funds Rate 
+    5.UNRATE                      Unemployment Rate
+    
+Dependent Variables: FEDFUNDS and UNRATE
+Independent Variables: CORESTICKM159SFRBATL  GDP_PCH  PCE_PCH
+
+```{r message=FALSE, warning=FALSE}
+Fred<-read.csv("/Users/omerabdelrahim/Downloads/fred.csv")
+attach(Fred)
+```
+
+```{r message=FALSE, warning=FALSE}
+# brief data overview 
+histogram(Fred$FEDFUNDS)
+histogram(Fred$UNRATE)
+```
+
+The histogram distribution of FEDFUNDS and UNRATE are quite similar; both Have relatively long right tail. However, UNRATE's histogram distribution looks more like a bell-shape.
+
+```{r message=FALSE, warning=FALSE}
+histogram(Fred$PCE_PCH)
+histogram(Fred$GDP_PCH)
+```
+
+The histogram distribution of PCE_PCH and GDP_PCH are similar, can be regarded as normal distribution.
+
+```{r message=FALSE, warning=FALSE}
+histogram(Fred$CORESTICKM159SFRBATL)
+```
+
+CORESTICKM159SFRBATL's histogram graph shows gamma distrubtion with long tail on its right side.
+
+```{r message=FALSE, warning=FALSE}
+
+boxplot(FEDFUNDS)
+fivenum(FEDFUNDS)
+
+boxplot(UNRATE)
+fivenum(UNRATE)
+```
+The overall distribution of the Federal Funds rate and Unemployment rate look similar when put into boxplot form. They tend to skew towards the bottom of the boxplot and have some massive outliers. 
+
+```{r message=FALSE, warning=FALSE}
+
+boxplot(PCE_PCH)
+fivenum(PCE_PCH)
+
+boxplot(GDP_PCH)
+fivenum(GDP_PCH)
+
+
+
+boxplot(CORESTICKM159SFRBATL)
+fivenum(CORESTICKM159SFRBATL)
+```
+
+PCE and GDP are quiet similar, with narrow variation.PCE and GDP should be expected to have inverse correlation with unemployment rate.
+
+```{r message=FALSE, warning=FALSE}
+plotdist(FEDFUNDS, histo = TRUE, demp = TRUE)
+
+plotdist(UNRATE, histo = TRUE, demp = TRUE)
+```
+
+Density for both fedfund and unemployment rate of the points in the dataset Fred. There two have a relatively long tail on their right side, so they might be a gamma distribution; but could also be seen as a generally normal distribution when looking at the data in totality with a few outliers when looking at individual value clusters.
+
+
+\section{Step 2}
+
+## Time series 
+
+```{r message=FALSE, warning=FALSE}
+Fred.ts <- ts(Fred,
+               start=c(1968,1),
+               end=c(2022,1),
+               frequency=4)
+PCE_PCH.ts<-Fred.ts[,"PCE_PCH"]
+GDP_PCH.ts<-Fred.ts[,"GDP_PCH"]
+UNRATE.ts<-Fred.ts[,"UNRATE"]
+CORESTICKM159SFRBATL.ts<-diff(Fred.ts[,"CORESTICKM159SFRBATL"])
+FEDFUNDS.ts<-Fred.ts[,"FEDFUNDS"]
+tsdisplay(PCE_PCH.ts)
+tsdisplay(GDP_PCH.ts)
+tsdisplay(UNRATE.ts)
+tsdisplay(CORESTICKM159SFRBATL.ts)
+tsdisplay(FEDFUNDS.ts)
+```
+Towards the beginning both UNRATE and FEDFUNDS show high volatility and somewhat low persistence, but then they start to trend downward. This is when UNRATE changes as it then starts to undulate in a wave like matter, meanwhile the FEDFUNDs rate has been trending toward 0 from its high in the 90's. Unemployment rate seems to have a high level of persistence and a sharp cutoff at PACF 1 from the ACF. FEDFUNDs also shows high persistence with an ACF that decreases slowly and a cutoff at around 7 on the PACF.
+
+\section{Part 3}
+
+## Fitting AR(p) models
+
+
+## UNRATE AR(p)
+```{r message=FALSE, warning=FALSE}
+m1 = dynlm(UNRATE.ts~L(UNRATE.ts,1)) 
+m2 = dynlm(UNRATE.ts~L(UNRATE.ts,1:2)) 
+m3 = dynlm(UNRATE.ts~L(UNRATE.ts,1:3)) 
+m4 = dynlm(UNRATE.ts~L(UNRATE.ts,1:4)) 
+m5 = dynlm(UNRATE.ts~L(UNRATE.ts,1:5))
+m6 = dynlm(UNRATE.ts~L(UNRATE.ts,1:6))
+AIC(m1,m2,m3,m4,m5,m6)
+plot(m5$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(m5$residuals,main="ACF of the Residuals")
+pacf(m5$residuals,main="PACF of the Residuals")
+bgtest(m5, order=1, type="F", fill=NA)
+bgtest(m5, order=1, type="F", fill=0)
+```
+
+The ACF and PACF for the best model here, m5, show that UNRATE is captured pretty well by the time series and that time series are an appropriate model to predict unemployment rates. Most of the dynamics of the model are captured relatively well in both the PACF and the ACF
+
+## FEDFUNDS AR(p)
+```{r message=FALSE, warning=FALSE}
+c1 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1))
+c2 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:2))
+c3 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:3))
+c4 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:4))
+c5 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:5))
+c6 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:6))
+c7 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:7))
+c8 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8))
+c9 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:9))
+c10 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:10))
+AIC(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10)
+BIC(c1,c2,c3,c4,c5,c6,c7,c8,c9,c10)
+plot(c7$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(c7$residuals,main="ACF of the Residuals")
+pacf(c7$residuals,main="PACF of the Residuals")
+bgtest(c7, order=1, type="F", fill=NA)
+bgtest(c7, order=1, type="F", fill=0)
+```
+
+Since C7 has the lowest BIC score and a relatively low AIC score, we choose c7 as the best predictor for this model. The FEDFUNDS rate is a different story to unemployment. The ACF and the PACF of the residuals show significance at lag4, indicating that time series may not be appropriate when attempting to evaluate changes in the Federal Funds rate, or that many dynamics might not be captured appropriately. This can be expected as the federal funds rate has a lower bound that over the past two decades has been pretty consistently hit, or at least the rate is hovering around that lower bound from its highs in the 80's.
+
+
+
+## K-Fold Cross FEDFUNDS
+```{r message=FALSE, warning=FALSE}
+fit= dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:7), x = TRUE, y = TRUE)
+cv.lm(fit, k = 5)
+
+set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+c7a<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:7), data = train)
+par(mfrow=c(2,2))
+plot(c7a)
+par(mfrow=c(1,1))
+summary(c7a)
+
+```
+
+FEDFUNDS shows quite a few significant lags, and for a couple of the significant lags the MSE indicates that there is a 0.76 difference between the predicted values of the federal funds rate, which amounts to a 0.75 difference between the actual fed funds rate and what is predicted. Overall considering that the FED for the most part raises rates very gradually, the value of 0.75 translating to 75 basis points in real life means that the model might be innacurate overall when ti comes to predicting the FEDFUNDs rate.  
+
+
+## K-Fold Cross UNRATE
+```{r message=FALSE, warning=FALSE}
+fit1= dynlm(UNRATE.ts~L(UNRATE.ts,1:5), x = TRUE, y = TRUE)
+cv.lm(fit1, k = 5)
+
+ set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+m5a<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5), data = train)
+par(mfrow=c(2,2))
+plot(m5a)
+par(mfrow=c(1,1))
+summary(m5a)
+
+```
+
+The high value of the RMSE and the lack of significant lags might point towards the fact that all the dynamics in the model might not be captured well. The RMSE can almost wipe out the prediction of the first value in the model, meaning that overall this model is inaccurate when it comes to predicting unemployment rate from one part of time to the next. This might have something to do with the covid pandemic as the large momentary spike in the unemployment rate is unlike anything ever seen in the model, thus throwing a wrench in its predictive power. 
+
+Overall the predictor for the FEDFUNDS model looks like its the most accurate, despite lacking serial correlation of the errors, there is a definite effect of past periods on the current value of the federal funds rate. It makes sense, especially considering the fact that there are conscious decisions made to change the rate as a result of various economic conditions and indicators
+
+
+## 10 Step Forecast FEDFUNDS
+
+```{r message=FALSE, warning=FALSE}
+Reg.ar7 = ar(FEDFUNDS.ts, aic=FALSE, order.max=7, method="ols")
+plot(forecast(Reg.ar7, 10),ylab = "Change in Federal Funds Rate Prediction")
+```
+
+After plateuing at 0 for long stretches of time, federal funds rate is expected to increase once again. this reflects the actuality of the situation as the FED is interested in raising rates again so that inflation can be combated properly. 
+ 
+
+## 10 Step Forecast UNRATE
+
+```{r message=FALSE, warning=FALSE}
+Reg.ar5 = ar(UNRATE.ts, aic=FALSE, order.max=5, method="ols")
+plot(forecast(Reg.ar5,10),ylab = "Change in Unemployment Rate Prediction")
+```
+
+The Unemployment Rate goes up and starts plateauing somewhere in between 4-5%. I think this is appropriate considering the high inflation environment and overall economic anxiety of the high inflation environment which we live in. It also reflects that the United States' natural level of unemployment lies around 4-5%, thus returning to something that is observable in a wide range of statistics.
+
+
+\section{Step 4}
+
+## Fitting ARDL Models 
+
+## UNRATE ARDL 
+
+```{r message=FALSE, warning=FALSE}
+u_ardl1<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(CORESTICKM159SFRBATL.ts,1))
+u_ardl2<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(CORESTICKM159SFRBATL.ts,1:2))
+u_ardl3<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(CORESTICKM159SFRBATL.ts,1:3))
+u_ardl4<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(CORESTICKM159SFRBATL.ts,1:4))
+u_ardl5<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(CORESTICKM159SFRBATL.ts,1:5))
+AIC(u_ardl1,u_ardl2,u_ardl3,u_ardl4,u_ardl5)
+plot(u_ardl3$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(u_ardl3$residuals,main="ACF of the Residuals")
+pacf(u_ardl3$residuals,main="PACF of the Residuals")
+bgtest(u_ardl3, order=1, type="F", fill=NA)
+bgtest(u_ardl3, order=1, type="F", fill=0)
+summary(u_ardl3)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+u2_ardl1<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1))
+u2_ardl2<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:2))
+u2_ardl3<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:3))
+u2_ardl4<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:4))
+u2_ardl5<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:5))
+AIC(u2_ardl1,u2_ardl2,u2_ardl3,u2_ardl4,u2_ardl5)
+plot(u2_ardl4$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(u2_ardl4$residuals,main="ACF of the Residuals")
+pacf(u2_ardl4$residuals,main="PACF of the Residuals")
+bgtest(u2_ardl4, order=1, type="F", fill=NA)
+bgtest(u2_ardl4, order=1, type="F", fill=0)
+summary(u2_ardl4)
+```
+
+
+As indicated by each of the summaries, it seems that CPI has no real effect on unemployment rate, but the changes in personal consumption does have marked effects on unemployment. This is to be expected, but its hard to tell what causes what. Does lower personal consumption lead to unemployment within in a period, or do lower unemployment rates lead to lower personal consumption due to less income? Overall u2_ardl4 seems like the most appropriate model going forward
+
+## FEDFUNDS ARDL
+
+```{r message=FALSE, warning=FALSE}
+f_ardl1<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(CORESTICKM159SFRBATL.ts,1))
+f_ardl2<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(CORESTICKM159SFRBATL.ts,1:2))
+f_ardl3<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(CORESTICKM159SFRBATL.ts,1:3))
+AIC(f_ardl1,f_ardl2,f_ardl3)
+plot(f_ardl2$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(f_ardl2$residuals,main="ACF of the Residuals")
+pacf(f_ardl2$residuals,main="PACF of the Residuals")
+bgtest(f_ardl2, order=1, type="F", fill=NA)
+bgtest(f_ardl2, order=1, type="F", fill=0)
+summary(f_ardl2)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+f2_ardl1<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(PCE_PCH.ts,1))
+f2_ardl2<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(PCE_PCH.ts,1:2))
+f2_ardl3<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(PCE_PCH.ts,1:3))
+AIC(f2_ardl1,f2_ardl2,f2_ardl3)
+plot(f_ardl1$residuals, pch=20,ylab="Residuals")
+abline(h=0, lwd=1,col="red")
+acf(f2_ardl1$residuals,main="ACF of the Residuals")
+pacf(f2_ardl1$residuals,main="PACF of the Residuals")
+bgtest(f2_ardl1, order=1, type="F", fill=NA)
+bgtest(f2_ardl1, order=1, type="F", fill=0)
+summary(f2_ardl1)
+```
+
+ACF and PACF still shows that not all model dynamics are exhibited properly in terms of determining the Federal Funds rate, but the overall lower level of the significance of the lags in f2_ardl1 makes it the preferable model. Serial correlation of the errors is still small, indicating that a time series might not necessarily be the best model to understand changes to the federal funds rate over time. Personal Consumption also is significant as to be expected, especially since the FED watches inflationary signals with great interest, and PCE can contribute heavily to inflation. 
+
+## K-fold Cross FEDFUNDS
+
+```{r message=FALSE, warning=FALSE}
+fit2= dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(PCE_PCH.ts,1), x = TRUE, y = TRUE)
+cv.lm(fit2, k = 5)
+
+ set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+f2_ardl1a<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1:8)+L(PCE_PCH.ts,1), data = train)
+par(mfrow=c(2,2))
+plot(f2_ardl1)
+par(mfrow=c(1,1))
+summary(f2_ardl1)
+```
+
+
+## K-fold Cross UNRATE
+
+```{r message=FALSE, warning=FALSE}
+fit3= dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:4), x = TRUE, y = TRUE)
+cv.lm(fit3, k = 5)
+
+ set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+u2_ardl4a<-dynlm(UNRATE.ts~L(UNRATE.ts,1:5)+L(PCE_PCH.ts,1:4), data = train)
+par(mfrow=c(2,2))
+plot(u2_ardl4a)
+par(mfrow=c(1,1))
+summary(u2_ardl4a)
+```
+
+Overall, it looks like u2_arld4 is the more appropriate model because it's simply just much more fitted to be analyzed in a time series. That being said, Federal Funds rates depends heavily on lags of itself as compared to unemployment, that at most depends up to two quarters on itself in order to accurately predict the next unemployment rate. One can see this from the longer lags being irrelevant in the Unemployment model, and the best model being one that shows a single lag of PCE. 
+
+## 10 Step Forecast FEDFUNDS ARDL
+
+```{r}
+#model f_ardl2
+Reg.ar82 = ar(FEDFUNDS.ts, aic=FALSE, order.max=8, method="ols")
+plot(forecast(Reg.ar82, 10),ylab = "Change in Federal Funds Rate Prediction")
+
+#model f2_ardl1
+Reg.ar81 = ar(FEDFUNDS.ts, aic=FALSE, order.max=8, method="ols")
+plot(forecast(Reg.ar81, 10),ylab = "Change in Federal Funds Rate Prediction")
+```
+
+
+## 10 Step Forecast UNRATE ARDL
+
+
+```{r}
+#model u_ardl3
+Reg.ar53 = ar(UNRATE.ts, aic=FALSE, order.max=5, method="ols")
+plot(forecast(Reg.ar53, x=c(1,1,1,1,1,1,1,1,1,1), h=10),ylab = "Change in Unemployment Rate Prediction")
+
+
+#model u2_ardl4
+Reg.ar54 = ar(UNRATE.ts, aic=FALSE, order.max=5, method="ols")
+plot(forecast(Reg.ar54,x=c(1,1,1,1,1,1,1,1,1,1), h=10),ylab = "Change in Unemployment Rate Prediction")
+```
+
+
+Both 10 step forecasts see very little change once apply the ARDL model to the 10 quarter forecast. This maybe due to the lack of adequate predictors in the UNRATE case, and the lack of important time series properties when it comes to the FEDFUNDS case. Overall the predictions still seem to be robust based on the eye test as they still adhere to the general pattern seen in the data as well as reflecting the economic expectations in the future given the rapid or not so rapid changes in umemployment and the federal funds rate. 
+
+\section{Part 5}
+
+## (l) VAR Model
+
+```{r message=FALSE, warning=FALSE}
+ccf(UNRATE.ts,FEDFUNDS.ts,ylab="Cross-Correlation Function", main = "FEDFUNDS and UNRATE CCF")
+```
+
+Unemployment rate is maximally correlated with the Federal Funds rate at around 2.25 quarters from each other, with a 10% change in the Unemployment rate being matched by a ~3.5% change in the Federal Funds Rate.
+
+
+```{r message=FALSE, warning=FALSE}
+y=cbind(UNRATE.ts,FEDFUNDS.ts)
+y=data.frame(y)
+VARselect(y, lag.max =10)
+
+k=cbind(FEDFUNDS.ts,UNRATE.ts)
+k=data.frame(k)
+VARselect(k, lag.max =10)
+```
+
+For both models, it seems that model 3 is the best as it offers the lowest AIC and SC values. Will use VAR(3) going forward.
+
+
+```{r message=FALSE, warning=FALSE}
+# using order 3 to build  the model
+y_model=VAR(y,p=3)
+summary(y_model)
+## using order 3 to build  the model
+k_model=VAR(k,p=3)
+summary(k_model)
+```
+
+Neither model can indicate from a cursory glance as to whether UNRATE causes FEDFUNDS, or vice a versa. Thus it is necessary to do a Granger test in order to ascertain which variables causes the other. This is a result of the variables themselves having a pretty low ccf value of 0.35.
+
+
+## ACF and PACF of Each Model
+
+```{r message=FALSE, warning=FALSE}
+#acf and pacf
+par(mfrow=c(2,1))
+acf(residuals(y_model)[,1])
+pacf(residuals(y_model)[,1])
+acf(residuals(k_model)[,2])
+pacf(residuals(k_model)[,2])
+par(mfrow=c(1,1))
+```
+
+Fortunately the residuals show very little significance within both of the models, showing that a VAR can properly predict the various effects both variables have on each other, even if that effect is small or not statistically/economically relevant.   
+
+
+## irf
+```{r message=FALSE, warning=FALSE}
+plot(irf(y_model, n.ahead=10))
+plot(irf(k_model, n.ahead=10))
+```
+
+The irf for model for both (as y and k show the same thing for the most part) shows that the unemployment rate initially has a large effect on unemployment going into the future before the shocking being leveled off within 10 months. Meanwhile fore the shock on the federal funds rat, there is a peak at 2 motnsh which levels off. Overall the original shock isn't incredibly high. 
+
+Meanwhile the Federal Funds rate has a large effect on itself, peaking at 1 month, and them levelling off at a relatively high level. Meanwhile there is little to no effect on the rate of unemployment within the first 10 quarters. 
+
+## Granger-Causility Test
+```{r message=FALSE, warning=FALSE}
+# UNRATE causes FEDFUNDS
+grangertest(FEDFUNDS.ts~UNRATE.ts, order = 3)
+#FEDFUNDS causes UNRATE
+grangertest(UNRATE.ts~FEDFUNDS.ts, order = 3)
+```
+
+Changes in the Federal Funds have the power to induce changes in the unemployment rate, meanwhile it's not true the other way around. Lowering investment via the Federal Funds rate could very well lead to layoffs as liquidity is restricted, and thus companies make or see themselves making less money off of future investments leading to layoffs. 
+
+
+## VAR 12 step Forecast
+```{r message=FALSE, warning=FALSE}
+#forecast y
+var.predict.y = predict(y_model, n.ahead=12)
+plot(var.predict.y)  # plotting result
+
+#forecast k
+var.predict.k = predict(k_model, n.ahead=12)
+plot(var.predict.k)  # plotting result
+```
+
+Both plots show slow increases over time, and that is much more realistic compared to just the AR models which expected quick returns to the average followed by a tail off. Though this type of prediction maybe erroneous in terms of the unemployment rate, as it tends to rapid valleys and peaks, the Federal funds rate probably experiences a much more calm increase in a low inflation environment.
+
+## FEVD plot
+```{r message=FALSE, warning=FALSE}
+plot(fevd(y_model))
+plot(fevd(k_model))
+```
+
+Shocks to the Federal Funds rate slightly affect the variance of the Unemployment rate, but vice a versa there is no discernible affects of unemployment on the Federal Funds Rate. Both fevd plots show the same thing, with switched palettes. 
+
+## K-Fold Cross Model y
+```{r message=FALSE, warning=FALSE}
+fit4 = dynlm(UNRATE.ts~L(UNRATE.ts,1)+L(FEDFUNDS.ts,1)+L(UNRATE.ts,2)+L(FEDFUNDS.ts,2)+L(UNRATE.ts,3)+ L(FEDFUNDS.ts,3), x = TRUE, y = TRUE)
+cv.lm(fit4, k = 5)
+
+ set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+modely_a<-dynlm(UNRATE.ts~L(UNRATE.ts,1)+L(FEDFUNDS.ts,1)+L(UNRATE.ts,2)+L(FEDFUNDS.ts,2)+L(UNRATE.ts,3)+ L(FEDFUNDS.ts,3), data = train)
+par(mfrow=c(2,2))
+plot(modely_a)
+par(mfrow=c(1,1))
+summary(modely_a)
+```
+
+
+## K-Fold Cross Model k
+```{r message=FALSE, warning=FALSE}
+fit5 = dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1)+L(UNRATE.ts,1)+L(FEDFUNDS.ts,2)+L(UNRATE.ts,2)+L(FEDFUNDS.ts,3)+ L(UNRATE.ts,3), x = TRUE, y = TRUE)
+cv.lm(fit4, k = 5)
+
+ set.seed(1)
+row.number <- sample(1:nrow(Fred.ts), 0.66*nrow(Fred.ts))
+train = Fred.ts[row.number,]
+test = Fred.ts[-row.number,]
+
+dim(train)
+dim(test)
+
+modelk_a<-dynlm(FEDFUNDS.ts~L(FEDFUNDS.ts,1)+L(UNRATE.ts,1)+L(FEDFUNDS.ts,2)+L(UNRATE.ts,2)+L(FEDFUNDS.ts,3)+ L(UNRATE.ts,3), data = train)
+par(mfrow=c(2,2))
+plot(modelk_a)
+par(mfrow=c(1,1))
+summary(modelk_a)
+```
+Again, we see a similar trend to the data seen above for both models. Unemployment rate really only has staying power in terms of predicting itself only going beyond one period with relatively high RMSE. Federal Funds meanwhile is able to predict itself well, but the significance takes a hit on the intercept. We should also expect Unrate to get more meaningful as the lags increase, mainly because they get maximally correlated at about 2.25 years which is the equivalent of about 9 quarters. Of course including 9 quarters is unfeasible and as a result it won't matter within the data as the effects become increasingly small. 
+
+\section{Part 6}
+
+## Conclusion
+
+In the end Unemployment Rate and the Federal Funds rate seem to not really have the largest amount of correlation and there might be better variables with shared dynamics that can give you a much more satisfactory result in terms of causation among other things. With that being said, the Federal funds rate does have a small effect on the Unemployment rate, probably because the unemployment rate rises when the federal funds rate rises. This due to a number of possible factors, such as inflation and rises in personal consumption. 
+
+One also has to consider the fact that the federal funds rate is something with a lower bound and is controlled by people with certain set goals. It's far from random in terms of determination of rates, and as a result we saw trending and a lack of stationarity. Unemployment rate meanwhile does not face the same problems when it comes to time series as the market forces are much more random than the various actions the FED takes. In a longer set of variables I could see unemployment with a lot less persistence and a lot more mean reversion. Even now, the unemployment rate bounces around 4-5% with very little movement beyond that. Of course there are economic crises to take into account, but overall unemployment has been very stationary variable, but with a lot of persistence. 
+
+Unemployment also proved difficult to predict over multiple lags, unlike the federal funds rate, probably because of the fact that unemployment tends to be more unpredictable than a consciously chosen rate by a small group of people. 
+
+The errors showed no serial correlation, something which is common in time series. Maybe that's a reason as to why the models came out less than spectacular in terms of predicting power, with many of the lags being irrelevant by a large margin. The cross correlation function also points to a low level of effect that each of the y's had on each other. 

@@ -1,0 +1,276 @@
+---
+title: | 
+  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0.5cm} \LARGE Project #3: Korean Welfare
+author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+
+subtitle: Analysis of Income as a Predictor of Welfare
+
+output:
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 3
+  fig_caption: yes
+  highlight: haddock
+  number_sections: yes
+  df_print: paged
+---
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+rm(list=ls(all=TRUE))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+library(lmvar)
+library(knitr)
+library(png)
+opts_chunk$set(tidy.opts=list(width.cutoff=60))
+options(rgl.printRglwidget = TRUE)
+#Libraries 
+library(tm)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(xts)
+library(tis)
+library(jsonlite)
+library(FNN)
+library(RColorBrewer)
+library(MASS)
+library(tseries)
+library(foreign)
+library(forecast)
+library(readtext) 
+library(tidyr) 
+library(scales)
+library(tinytex)
+library(fitdistrplus)
+library(broom)
+library(car)
+library(lmtest)
+library(PerformanceAnalytics)
+library(leaps)
+library(olsrr)
+library(Boruta)
+library(AER)
+library(plm)
+library(stargazer)
+library(coefplot)
+library(gplots)
+library(lattice)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+Kwelfare<-read.csv("/Users/omerabdelrahim/Downloads/Econ104 Projects/Korea Income and Welfare.csv")
+attach(Kwelfare)
+```
+
+
+
+\section{Part 1}
+## What We Want to Answer With This Model on Korean Welfare
+
+A multiyear study of Korean Welfare recipients is analyzed. In this case nincome will be the dependent variable and we desire to identify the most relevant variables that affect nincome and what may or may not be the determining factors of income that would place an individual on welfare. 
+
+The data itself is not balanced, but we wish to capture dynamics such as family size, age, education, region and year in order to explain differences in income among welfare recipients. We'd like to say that possibly such factors like age might determine a higher likelihood of receiving welfare, or heavily affecting nincome, but that is something that lies outside the viability of this model. It is unfortunately unfeasible to determine questions of causality, and as such we find ourselves unable to make statements on the regressors affecting such and such resulting in a higher or lower income. 
+
+Yet it is still interesting to see what could be the possible effects that the regressors may have on nincome, such as one having a larger family resulting in a higher or lower income and as a result a higher necessity for welfare or vice a versa. 
+
+Ultimately, we seek to answer what effects the various regressors have on nincome, and possibly what similarities exist among recipients of welfare.
+
+
+
+\section{Part 2}
+
+## Descriptive Analysis of the Variables 
+
+Dataset: Korea Income and Welfare.csv
+
+Contains information on a multiyear study from 2005 to 2018 with 65,499 observations of about ~10,000 individuals 
+
+13 variables in the data ;
+
+    1. id
+    
+    2. year : study conducted
+    
+    3. wave : from the 1st wave in 2005 to the 14th wave in 2018
+    
+    4. region: 
+      1) Seoul 
+      2) Kyeong-gi 
+      3) Kyoung-nam 
+      4) Kyoung-buk 
+      5) Chung-nam 
+      6) Gang-won &.Chung-buk 
+      7) Jeolla & Jeju
+      
+    5. income: yearly income in M KRW(Million Korean Won. 1100 KRW = 1 USD)
+    
+    6. family_member: no. of family members
+    
+    7. gender: 
+      1) male 
+      2) female
+      
+    8. year_born: The year that individul was born
+    
+    9. education_level: 
+      1) no education(under 7 yrs-old) 
+      2) no education(7 & over 7 yrs-old) 
+      3)elementary 
+      4) middle school 
+      5) high school 
+      6) college 
+      7) university degree 
+      8) MA 
+      9) doctoral degree
+      
+    10. marriage: marital status. 
+      1) not applicable (under 18) 
+      2) married 
+      3) separated by death 
+      4) separated 
+      5) not married yet 
+      6) others
+    11. religion: 
+      1) have religion 
+      2) do not have
+      
+    12. yb: age
+    
+    13. nincome: Income normalized on a 0-100 scale. 
+                 Lowest Value: -232,174
+                 Highest Value: 468,209
+
+```{r}
+hist(year)
+hist(education_level)
+histogram(yb)
+histogram(region)
+histogram(income)
+histogram(family_member)
+histogram(marriage)
+```
+
+```{r}
+boxplot(yb)
+fivenum(yb)
+```
+
+```{r}
+plotdist(nincome,  histo = TRUE, demp = TRUE)
+boxplot(nincome)
+fivenum(nincome)
+
+plotdist(income, histo = TRUE, demp = TRUE)
+boxplot(income)
+fivenum(income)
+```
+
+\section{Part 3}
+
+## Pooled Model
+
+```{r message=FALSE, warning=FALSE}
+# Converting data to panel and creating a pooled model 
+Kwelfare.pd<- pdata.frame(Kwelfare, index=c("id", "year"))
+head(Kwelfare.pd)
+Kwelfare.pooled <- plm(nincome~education_level+yb+region+family_member,
+  model="pooling", data = Kwelfare.pd)
+summary(Kwelfare.pooled)
+
+# Estimating the Pooled OLS w/ Cluster-robust standard errors
+coeftest(Kwelfare.pooled, vcov=vcovHC(Kwelfare.pooled,
+                    type="HC0",cluster="group"))
+```
+
+
+## Fixed Effects Model 
+
+```{r message=FALSE, warning=FALSE}
+#Fixed Effects Dummy Variable approach 
+# Subset for the first 10 individuals
+Kwelfare.pd10 <- pdata.frame(Kwelfare[Kwelfare$id%in%10101:100101,])
+head(Kwelfare.pd10)
+Kwelfare.fixed10 <- lm(nincome~yb+education_level+region+family_member+factor(id)-1,
+                  data=Kwelfare.pd10)
+summary(Kwelfare.fixed10)
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+# Fixed Effects Within Model
+# Subset for the first 10 individuals
+Kwelfare.pd10 <- pdata.frame(Kwelfare[Kwelfare$id %in% 10101:100101,])
+head(Kwelfare.pd10)
+# Estimate the within model
+Kwelfare.within10 <- plm(nincome~education_level+yb+region+family_member,
+                  data=Kwelfare.pd10,
+                  model="within",)
+summary(Kwelfare.within10)
+fixef(Kwelfare.within10)
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+#Coefficient plot, now including year
+#Year
+FE.Kwelfare<-lm(nincome~education_level+yb+region+family_member+year,
+                  data=Kwelfare.pd,)
+coefplot(FE.Kwelfare, predictors="year")
+
+#ID up to the first 8, excluding 1 and 10
+FE.Kwelfare<-lm(nincome~education_level+yb+region+family_member+year+id,
+                  data=Kwelfare.pd10,)
+coefplot(FE.Kwelfare, predictors="id")
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# Heterogeneity across time:
+#first 10 observations 
+scatterplot(nincome ~year|id, data=Kwelfare.pd10)
+#Whole data set
+plotmeans(nincome ~year, data = Kwelfare)
+```
+
+
+## Random Effects Model 
+
+```{r message=FALSE, warning=FALSE}
+Kwelfare.random <- plm(nincome~education_level+yb+region+family_member,
+                  data=Kwelfare.pd,
+                  model="random",)
+summary(Kwelfare.random)
+```
+
+
+## Comparing the Models 
+
+```{r message=FALSE, warning=FALSE}
+#Comparing the Within model to the Pooled Model 
+#Regular within model construction 
+Kwelfare.within <- plm(nincome~education_level+yb+region+family_member,
+                  data=Kwelfare.pd,
+                  model="within")
+summary(Kwelfare.within)
+#pFtest 
+pFtest(Kwelfare.within, Kwelfare.pooled)
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+#Comparing Fixed Within model to the Random Model 
+phtest(Kwelfare.within, Kwelfare.random)
+```
+As evidenced by the low p-value here, the Fixed Effects Within model is preferable to the Random Effects model, as the Random effects model is considered inconsistent relative to the Fixed Effects Within model. 
+
+
+

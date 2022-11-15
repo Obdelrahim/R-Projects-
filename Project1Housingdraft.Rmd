@@ -1,0 +1,397 @@
+---
+title: | 
+  | \vspace{0cm} \LARGE Econ 104L: Group Project 
+  | \vspace{0.5cm} \LARGE Project #1
+author: "Omer Abdelrahim, Sophie Wang, Shane Barry, Yale Yang"
+
+#subtitle: Predicting Median Housing Values in Boston Suburbs 
+output:
+  pdf_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 3
+  fig_caption: yes
+  highlight: haddock
+  number_sections: yes
+  df_print: paged
+---
+
+```{r, echo=FALSE, warning=FALSE, message= FALSE}
+library(knitr)
+library(png)
+opts_chunk$set(tidy.opts=list(width.cutoff=60))
+options(rgl.printRglwidget = TRUE)
+```
+
+```{r libraries, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list=ls(all=TRUE))
+library(tm)
+library(ggplot2)
+library(dplyr)
+library(plyr)
+library(foreign)
+library(xts)
+library(tis)
+library(jsonlite)
+library(FNN)
+library(RColorBrewer)
+library(MASS)
+library(tseries)
+library(foreign)
+library(forecast)
+library(readtext) 
+library(tidyr) 
+library(scales)
+library(tinytex)
+library(fitdistrplus)
+library(broom)
+library(car)
+library(lmtest)
+library(PerformanceAnalytics)
+library(leaps)
+library(olsrr)
+library(Boruta)
+library(caret)
+library(lmvar)
+Bhousing <- read.csv("/Users/omerabdelrahim/Downloads/Econ104 Projects/hou_all edited.csv")
+```
+
+\section{Part 1}
+
+## Descriptive Analysis of Variables
+
+Relevant Information:
+
+Concerns housing values in suburbs of Boston.
+
+Number of Instances: 506
+
+Number of Attributes: 13 continuous attributes (including "class" attribute "MEDV"), 1 binary-valued attribute.
+
+Attribute Information:
+
+    1. Crm       per capita crime rate by town
+    2. Zn        proportion of residential land zoned for lots over 
+                 25,000 sq.ft.
+    3. Indus     proportion of non-retail business acres per town
+    4. Chas      Charles River dummy variable (= 1 if tract bounds 
+                 river; 0 otherwise)
+    5. Nox       nitric oxides concentration (parts per 10 million)
+    6. RM        average number of rooms per dwelling
+    7. Age       proportion of owner-occupied units built prior to 1940
+    8. Dis       weighted distances to five Boston employment centres
+    9. Rad       index of accessibility to radial highways
+    10. Tax      full-value property-tax rate per $10,000
+    11. Ptratio  pupil-teacher ratio by town
+    12. Lstat    % lower status of the population
+    13. Medv     Median value of owner-occupied homes in $1000's
+
+Dependent Value (y): Median Housing Values in the Suburb (Medv) Predictors: Crm, Zn, Indus, Chas, Nox, Rm, Age, Dis, Rad, Tax, Ptratio, Lstat
+
+```{r}
+attach(Bhousing)
+hist(Medv, breaks = seq(0,50,1), xaxp=c(0,50,25))
+plotdist(Medv, histo = TRUE, demp = TRUE)
+```
+
+Density of the points in the dataset Bhousing. Data has a long tail, so it might be a gamma distribution, but could also be seen as a generally normal distribution when looking at the data in totality with a few outliers when looking at individual value clusters.
+
+```{r}
+River <- table(Chas)
+barplot(River, main = "Tracts Bounded by the River", ylim =c(0,500))
+```
+
+Majority of the tracts are not bound by the Charles River, about a 10:1 ratio.
+
+```{r}
+boxplot(Age)
+fivenum(Age)
+```
+
+The vast majority of the houses in the boston suburbs tend to be older than 1940, possibly indicating that Age may not necessarily be an important factor in terms of predicting median value.
+
+```{r}
+boxplot(Tax)
+fivenum(Tax)
+```
+
+Tax varies wildly, and it should be expected that tax probably moves along with Zn and RM, as both are indicators of property value, and overall square footage, both of which are tied to property tax. The majority of the houses skew towards the bottom of the tax distribution, as higher property taxes probably also indicate higher property value.
+
+```{r}
+boxplot(Ptratio)
+fivenum(Ptratio)
+```
+
+Parent teacher ratio does not vary wildly, but an important factor is house prices usually tends to be access to good public or private schooling, so we can expect these small differences in Ptratio to be somewhat significant in the determination of Median House value.
+
+```{r}
+Access <-table(Rad)
+barplot(Access)
+```
+
+As expected some places have very high access to highways, and the others require more walking and driving. Since Boston is an east coast city, it is relatively compact and as a result one can expect the majority of neighborhoods to have good access to various Highways
+
+```{r}
+boxplot(RM)
+fivenum(RM)
+```
+
+Rooms varies little in terms of data, but this is the category that is most expected to influence meadian value. There is a considerable amount of obervations beyond each of the respective quartiles.
+
+```{r message=FALSE, warning=FALSE}
+chart.Correlation(Bhousing, histogram = TRUE)
+```
+
+Interesintgly enough, Lstat has a gamma distribution very similar to Medv and they also have a negative correlation with one another. it shows that generally the outliers for those with more wealth far outstrip the outliers for those who are not as well off. The amount of rooms also has many interesting correlations, espeically with Nox and Dis, maybe indicating a tradeoff between size and accessibility.
+
+\section{Part 2}
+
+## Multiple Regression Predicting Median House value in the Boston Suburbs
+
+```{r}
+reg.Bfull <-lm(Medv~Crm+Zn+Tax+Nox+Ptratio+Rad+Dis+RM+Age+Lstat+Chas)
+summary(reg.Bfull)
+```
+
+Nox has an outsized negative effect on median value, removing it from the model will probably result in an increased accuracy for the model, and may help to improve accuracy of the Age statistic. This may be doubtful though, as in a city such as Boston, many of the houses are post 1940, and should have no real effect on the price, unless age is indicative of a lack of amenities among other things.
+
+RM and Dis also seem like prime candidates to remove from the regression as they have outsized affects in comparison to peer statistics, but using a bit of of real world knowledge, location and the number of rooms do in fact have signficant effects in terms of property evaluation in the real world. As a result both of these predictors will stay.
+
+The residuals are centered around 0 roughly, share similar first and third quartiles above and below 0 and the R value is quite high for a financial regression being above 0.7.
+
+\section{Part 3}
+
+## Re-evaluation of the multiple regression with the removal of the predictor Nox
+
+```{r}
+reg.BfullA <-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Age+Lstat+Chas)
+summary(reg.BfullA)
+```
+
+The removing of Nox as a predictor heavily affects the Intercept and as a result it was probably in the best interest of accuracy to remove it.
+
+\section{Part 4}
+
+## Mallows Cp
+
+```{r}
+MCPBH=regsubsets(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Age+Lstat+Chas,method=c("exhaustive") ,nbest = 2, data = Bhousing)
+subsets(MCPBH,statistic="cp",legend=F,main="Mallows CP")
+model1<-lm(Medv~Crm)
+model2<-lm(Medv~Crm+Zn)
+model3<-lm(Medv~Crm+Zn+Tax)
+model4<-lm(Medv~Crm+Zn+Tax+Ptratio)
+model5<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad)
+model6<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis)
+model7<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM)
+model8<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Age)
+model9<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Age+Lstat)
+model12<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Lstat+Chas+Age) 
+model10<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Lstat)
+
+ols_mallows_cp(model1, reg.BfullA)
+ols_mallows_cp(model2, reg.BfullA)
+ols_mallows_cp(model3, reg.BfullA)
+ols_mallows_cp(model4, reg.BfullA)
+ols_mallows_cp(model5, reg.BfullA)
+ols_mallows_cp(model6, reg.BfullA)
+ols_mallows_cp(model7, reg.BfullA)
+ols_mallows_cp(model8, reg.BfullA)
+ols_mallows_cp(model9, reg.BfullA)
+ols_mallows_cp(model12, reg.BfullA)
+ols_mallows_cp(model10, reg.BfullA) 
+```
+
+## Boruta's Algorithm
+
+```{r}
+#Boruta plot
+Brt.res<-Boruta(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Age+Lstat+Chas, data=Bhousing)
+plot(Brt.res,xlab = "", xaxt = "n",main="Importance of Variables in Bhousing as Measured Against Medv")
+lz<-lapply(1:ncol(Brt.res$ImpHistory),function(i) Brt.res$ImpHistory[is.finite(Brt.res$ImpHistory[,i]),i])
+names(lz) <- colnames(Brt.res$ImpHistory)
+Labels <- sort(sapply(lz,median))
+axis(side = 1,las=2,labels = names(Labels),
+at = 1:ncol(Brt.res$ImpHistory), cex.axis = 0.7)
+```
+
+```{r Boruta listing of Confirmed Values}
+#Listing of confirmed relevant variables
+boruta_signif <- names(Brt.res$finalDecision[Brt.res$finalDecision %in% c("Confirmed")])
+boruta_signif_Conf <- names(Brt.res$finalDecision[Brt.res$finalDecision %in% c("Confirmed")])
+print(boruta_signif_Conf)
+
+```
+
+```{r Organization of Values By Importance}
+#Organizations of Values by Importance 
+sorted_vars = attStats(Brt.res)[order(-attStats(Brt.res)$meanImp),]
+print(sorted_vars)
+```
+
+
+The new model going forward is going to be based on model12, as it offers the best Mallows Cp score. With 10 variables the score is 11, which adheres to the p+1 rule about. Removing variables such as age, which was briefly considered, only helps to widen the gap between the expected score, and what is actually desired. 
+
+We also find that all the variables are in fact significant, and none of the variables in the model need to be removed as a result of lacking specificity towards the model. We also see that the RM variables is the most important in determining median value, as well as other statisticis like crm, dis and Lstat. 
+
+
+\section{Part 5}
+
+## VIF Model
+
+## Model 12 VIF
+
+
+```{r}
+vif(model12)
+predictions <- model12 %>% predict(Bhousing)
+data.frame(R2 = R2(predictions, Bhousing$Medv)) #R2 for model12
+```
+
+High VIF scores for Tax and Rad, which could be a cause for concern. Will remove them and retest any changes in the R2. If R2 still remains the same after removal/doesn't change the performance of the model in any meaningful way, Tax and Rad should be kept
+
+## Model 11 VIF
+
+```{r}
+model11<-lm(Medv~Crm+Zn+Ptratio+Dis+RM+Lstat+Chas)
+vif(model11)
+predictions11 <- model11 %>% predict(Bhousing)
+data.frame(R2 = R2(predictions11, Bhousing$Medv)) #R2 for model11
+```
+
+No major effect on the model as a result of removing variables with high VIF. Will continue to use model12 as the main regression model instead of moving to model11
+
+\section{Part 6}
+
+## Residuals Plotting
+
+```{r}
+par(mfrow=c(2,2))
+res<-resid(model12) #Residuals for Model 12
+med.res<-lm(res~Medv)
+plot(med.res)
+abline(med.res)
+par(mfrow=c(1,1))
+plot(fitted(model12), res) #Fitted model for 12
+abline(0,0, col="Blue", lwd=2)
+```
+
+
+Generally it seems as though there is a pattern of some sort with the residuals increasing as the amount of observations increase. This may be due to the amont of residuals gathering towards the end of the plot in both the fitted model as well as the plotting of residuals against the medain value. We might see some form of heteroskedasticity, but generally enough, the residuals follow a mostly straight line, with some dipping and rising. 
+
+
+\section{Part 7}
+
+## RESET Test
+
+```{r}
+resettest(model12, power=2, type="fitted")
+resettest(model12, power=2:8, type="fitted")
+resettest(model12, power=2:8, type="regressor")
+```
+
+With the p-values of the RESET test indicating a high level of statistical significance, higher order terms/interaction terms are both needed to increase the prediction power of this model to an acceptable level. Regardless, the model still does a good job of predicting median value with a high level of correlation, atleast in terms of the evaluation of financial assets.
+
+\section{Part 8}
+
+## Testing for Heteroskedasticity
+
+## NCV Test
+
+```{r}
+ncvTest(model12)
+```
+
+Reject the null hypothesis of a constant variance, the model displays what could possibly be heteroskedasticity in some manner. 
+
+## BP Test
+
+```{r}
+bptest(model12)
+```
+
+The low p-value would point towards the fact that the model is in fact heteroskedastic, and that the model does vary as median value increases.
+
+## GQ Test
+
+```{r}
+gqtest(model12, alternative = "greater")
+```
+
+Similar results to the BP test, and with the p being quite close to the 95% mark on the NCV test, it would be prudent to think that the model assembled here is heteroskedastic in some way. Especially when looking at the residuals plot, there is a large amount of residuals grouped at the end of the distribution, even if in general we see that residuals don't really grow with an increase in x.
+
+## Heteroskedasticity Robust Errors
+
+```{r}
+cov1 <- hccm(model12, type="hc1") #Heteroskedastic Regression
+coeftest(model12, vcov.=cov1)
+
+summary(model12) #Homoskedastic Regression
+```
+
+Using Heteroskedastic robust errors actually increases standard error and harms the significance of the variables. Maybe in this model we want to remove the effects that Chas and Age have on the model as the standard error is quite high in relation to the p-value being quite low
+
+\section{Part 9}
+
+## Estimation of New Model
+
+```{r}
+#Heteroskedastic Error Robust Model 
+model13<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Lstat+Lstat:Crm)
+cov2 <- hccm(model13, type="hc1") 
+coeftest(model13, vcov.=cov2)
+#Regular Model
+summary(model13)
+```
+
+
+No significant difference spotted between the Model 13 and Model 12 in terms of predictive power, although now all variables are statistically significant and the interactive variable offers interesting information between crime per capita and the percentage of lower income individuals in an area. Generally this model preforms as well as the other models that came before it in terms ofoverall predictive power with a correlation around 0.72. The new interaction variable overall had very little to do with changing the accuracy of the model. 
+
+
+## AIC and BIC tests 
+
+```{r}
+AIC(model1, model2, model3, model4, model5, model6, model7, model8, model9, model10, model11, model12, model13)
+BIC(model1, model2, model3, model4, model5, model6, model7, model8, model9, model10, model11, model12, model13)
+```
+
+AIC and BIC both state that either Model 12 or Model 13 are going to be the best models to stick with as they both have the lowest scores. Going forward, we will be analyzing model 13 as it does have an interaction variable and as a result will probably help in the long run in terms of passing a RESET test, as it had been indicated that a higher order variable or interaction term was necessary in order to better predict a model for median value of housing as a function of our 10 or so predictors. 
+
+
+\section{Part 10}
+
+## K-fold Cross Validation 
+
+```{r}
+#five-fold CV 
+fit= lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Lstat+Lstat:Crm,x = TRUE, y = TRUE)
+cv.lm(fit, k = 5)
+```
+
+Within the model, the RMSE lines up particularly well with the standard error. Unfortunately within this model, the standard error is quite high in comparison to the intercept, the variation within that error is quite low as evidence by the sample standard deviation within the error is low. Beyond the error inherent in the model, there is very little error beyond that. 
+
+```{r}
+## Training and Testing Samples 
+set.seed(1)
+row.number <- sample(1:nrow(Bhousing), 0.66*nrow(Bhousing))
+train = Bhousing[row.number,]
+test = Bhousing[-row.number,]
+
+dim(train)
+dim(test)
+
+model13A<-lm(Medv~Crm+Zn+Tax+Ptratio+Rad+Dis+RM+Lstat+Lstat:Crm, data = train)
+par(mfrow=c(2,2))
+plot(model13A)
+par(mfrow=c(1,1))
+summary(model13A)
+
+ggplot(train, aes(Medv, residuals(model13A))) + geom_point() + geom_smooth()
+```
+
+
+The cross validation shows that the zoning variable is actually pretty weak in terms of determining housing value. As a result of this statistical scrutiny it might make sense to get rid of zoning such that a higher correlation can be reached and a better understanding of the Boston housing market can be reached. It makes sense that Zoning is a relatively weak way to determine housing value, as in a metropolitan area there are going to be apartment complexes that are high in value but relatively small in terms of overall square footage. Zoning may also take place on a 2 dimensional map, and the allocation of housng psace within an apartment complex may be entirely up to those  who own the building.  
+
+\section{Part 11: Conclusion}
+
+Overall the final model that we have chosen (model 13) is relatively capable at predicting a correlation between the variables within the data set and Median housing value with Boston suburbs. Ultimately there most likely is a more concise model that is better at predicing median value than this one, as indicated by the RESET test, but both the VIF as well as Mallows Cp did wonders in terms of identifiying the relevant variables needed within the regression. Even then, once those variables were removed, the R2 value didn't change all that much hovering around 0.72. Overall the model did a generally good job of identifying a correlation between Median Value and the 10 predictors, but there is defintely room for improvement. 
