@@ -1,8 +1,8 @@
 ---
 title: | 
-  | \vspace{0cm} \LARGE Econ 104L: Group Project 
+  | \vspace{0cm} \LARGE Econ 104L 
   | \vspace{0.5cm} \LARGE Project #1
-author: "Omer Abdelrahim, Sophie Wang, Shane Barry, Yale Yang"
+author: "Omer Abdelrahim"
 
 #subtitle: Predicting Median Housing Values in Boston Suburbs 
 output:
