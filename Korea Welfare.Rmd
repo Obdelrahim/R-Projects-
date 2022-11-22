@@ -1,8 +1,8 @@
 ---
 title: | 
-  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0cm} \LARGE Econ 104L
   | \vspace{0.5cm} \LARGE Project #3: Korean Welfare
-author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+author: "Omer Abdelrahim"
 
 subtitle: Analysis of Income as a Predictor of Welfare
 
