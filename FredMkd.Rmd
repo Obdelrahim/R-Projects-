@@ -1,8 +1,8 @@
 ---
 title: | 
-  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0cm} \LARGE Econ 104L  
   | \vspace{0.5cm} \LARGE Project #2
-author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+author: "Omer Abdelrahim"
 
 subtitle: Time Series of the Unemployment Rate and the Federal Funds Rate
 
@@ -618,5 +618,3 @@ One also has to consider the fact that the federal funds rate is something with 
 Unemployment also proved difficult to predict over multiple lags, unlike the federal funds rate, probably because of the fact that unemployment tends to be more unpredictable than a consciously chosen rate by a small group of people. 
 
 The errors showed no serial correlation, something which is common in time series. Maybe that's a reason as to why the models came out less than spectacular in terms of predicting power, with many of the lags being irrelevant by a large margin. The cross correlation function also points to a low level of effect that each of the y's had on each other. 
-
-Attempting to fit a new forecasting mechanism for my ardl stuff. I never got it right the first time. Will do when I get home 
