@@ -1,8 +1,8 @@
 ---
 title: | 
-  | \vspace{0cm} \LARGE Econ 104L: Group  
+  | \vspace{0cm} \LARGE Econ 104L
   | \vspace{0.5cm} \LARGE Project #3 Part 2: Retirement Age Prediction
-author: "Ye Wang, Omer Abdelrahim, Shane Barry, Yale Yang"
+author: "Omer Abdelrahim"
 
 subtitle: Constructing Logit and Probit models for Retirment Age 
 
