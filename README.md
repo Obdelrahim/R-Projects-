@@ -1,3 +1,3 @@
-# Econ104
+# Econometric Analysis on Insurance, FRED data, etc. 
 Work
-R Studio Code
+R Code
